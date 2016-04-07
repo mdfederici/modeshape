@@ -183,7 +183,7 @@ public final class ModeShapeRestService {
      * <li>the value of the system property 'jboss.server.data.dir'</li>
      * <li>the value of the system property 'user.home'</li>
      * </ul>
-     * 
+     *
      * If none of those locations is available and writable, the request will fail.
      *
      * @param servletContext the {@link ServletContext} instance
@@ -195,7 +195,7 @@ public final class ModeShapeRestService {
      * @return a {@link Response} instance which if successful will contain the name of the backup file and the location on the 
      * server where the backup was performed.
      * @throws RepositoryException if there is any unexpected error while performing the backup
-     * 
+     *
      * @see org.modeshape.jcr.api.RepositoryManager#backupRepository(File, BackupOptions)
      */
     @POST
@@ -223,8 +223,8 @@ public final class ModeShapeRestService {
                 return compress;
             }
         });
-    }  
-    
+    }
+
     /**
      * Performs a repository restore on the server based on the name of a backup provided as argument. 
      * The root location where the backup will be searched is in order:
@@ -235,7 +235,7 @@ public final class ModeShapeRestService {
      * <li>the value of the system property 'jboss.server.data.dir'</li>
      * <li>the value of the system property 'user.home'</li>
      * </ul>
-     * 
+     *
      * If a backup with the given name cannot be found at any of those location, the request will fail.
      *
      * @param servletContext the {@link ServletContext} instance
@@ -246,7 +246,7 @@ public final class ModeShapeRestService {
      * @param reindexContent whether or not a full repository reindexing should be performed, once restore has completed; defaults to {@code true}
      * @return a {@link Response} instance, never {@code null}
      * @throws RepositoryException if there is any unexpected error while performing the restore
-     * 
+     *
      * @see org.modeshape.jcr.api.RepositoryManager#restoreRepository(File, RestoreOptions)
      */
     @POST
@@ -299,7 +299,7 @@ public final class ModeShapeRestService {
         Property binaryProperty = binaryHandler.getBinaryProperty(request, repositoryName, workspaceName, path);
         if (binaryProperty.getType() != PropertyType.BINARY) {
             return Response.status(Response.Status.NOT_FOUND)
-                           .entity(new RestException("The property " + binaryProperty.getPath() + " is not a binary")).build();
+                    .entity(new RestException("The property " + binaryProperty.getPath() + " is not a binary")).build();
         }
         Binary binary = binaryProperty.getBinary();
         if (StringUtil.isBlank(mimeType)) {
@@ -431,6 +431,86 @@ public final class ModeShapeRestService {
                               @PathParam( "path" ) String path,
                               String requestContent ) throws RepositoryException, JSONException {
         return itemHandler.addItem(request, rawRepositoryName, rawWorkspaceName, path, requestContent);
+    }
+
+    @POST
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}" )
+    @Produces( {MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN, MediaType.TEXT_HTML} )
+    public Response createWorkspace( @Context HttpServletRequest request,
+                                     @PathParam( "repositoryName" ) String rawRepositoryName,
+                                     @PathParam( "workspaceName" ) String originalWorkspace,
+                                     String requestContent ) throws RepositoryException, JSONException {
+        return itemHandler.createWorkspace(request, rawRepositoryName, originalWorkspace, requestContent);
+    }
+
+    @POST
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}/merge" )
+    @Produces( {MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN, MediaType.TEXT_HTML} )
+    public Response mergeWorkspace( @Context HttpServletRequest request,
+                                    @PathParam( "repositoryName" ) String rawRepositoryName,
+                                    @PathParam( "workspaceName" ) String workspaceToMergeInto,
+                                    String requestContent ) throws RepositoryException, JSONException {
+        return itemHandler.mergeWorkspace(request, rawRepositoryName, workspaceToMergeInto, requestContent);
+    }
+
+    @DELETE
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}" )
+    @Produces( {MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN, MediaType.TEXT_HTML} )
+    public Response deleteWorkspace( @Context HttpServletRequest request,
+                                     @PathParam( "repositoryName" ) String rawRepositoryName,
+                                     @PathParam( "workspaceName" ) String workspaceToDelete,
+                                     String requestContent ) throws RepositoryException, JSONException {
+        return itemHandler.deleteWorkspace(request, rawRepositoryName, workspaceToDelete, requestContent);
+    }
+
+    @GET
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}/" + RestHelper.ITEMS_METHOD_NAME + "{path:.*}/revisions" )
+    @Produces( {MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN, MediaType.TEXT_HTML} )
+    public Response getRevisions( @Context HttpServletRequest request,
+                                  @PathParam( "repositoryName" ) String rawRepositoryName,
+                                  @PathParam( "workspaceName" ) String rawWorkspaceName,
+                                  @PathParam( "path" ) String path,
+                                  String requestContent ) throws RepositoryException, JSONException {
+        return itemHandler.getRevisions(request, rawRepositoryName, rawWorkspaceName, path, requestContent);
+    }
+
+    @GET
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}/" + RestHelper.ITEMS_METHOD_NAME + "{path:.*}/revision/{versionName}" )
+    @Produces( {MediaType.TEXT_HTML, MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON} )
+    public Response getItemRevision( @Context HttpServletRequest request,
+                                     @PathParam( "repositoryName" ) String rawRepositoryName,
+                                     @PathParam( "workspaceName" ) String rawWorkspaceName,
+                                     @PathParam( "path" ) String path,
+                                     @PathParam( "versionName" ) String versionName) throws RepositoryException, JSONException {
+        return itemHandler.getItemRevision(request, rawRepositoryName, rawWorkspaceName, path, versionName);
+    }
+
+    @POST
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}/" + RestHelper.ITEMS_METHOD_NAME + "{path:.*}/revert/{versionToRevertTo}" )
+    @Produces( {MediaType.TEXT_HTML, MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON} )
+    public Response revertItem( @Context HttpServletRequest request,
+                                @PathParam( "repositoryName" ) String rawRepositoryName,
+                                @PathParam( "workspaceName" ) String rawWorkspaceName,
+                                @PathParam( "path" ) String path,
+                                @PathParam( "versionToRevertTo" ) String versionToRevertTo) throws RepositoryException, JSONException {
+        return itemHandler.revertItem(request, rawRepositoryName, rawWorkspaceName, path, versionToRevertTo);
+    }
+
+    @POST
+    @Consumes( MediaType.APPLICATION_JSON )
+    @Path( "{repositoryName}/{workspaceName}/" + RestHelper.ITEMS_METHOD_NAME + "{path:.*}/checkout" )
+    @Produces( {MediaType.TEXT_HTML, MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON} )
+    public Response checkoutItem( @Context HttpServletRequest request,
+                                  @PathParam( "repositoryName" ) String rawRepositoryName,
+                                  @PathParam( "workspaceName" ) String rawWorkspaceName,
+                                  @PathParam( "path" ) String path) throws RepositoryException, JSONException {
+        return itemHandler.checkoutItem(request, rawRepositoryName, rawWorkspaceName, path);
     }
 
     /**
@@ -752,7 +832,7 @@ public final class ModeShapeRestService {
                                            @Context UriInfo uriInfo,
                                            String requestContent ) throws RepositoryException {
         return queryHandler.executeQuery(request, rawRepositoryName, rawWorkspaceName, Query.XPATH, requestContent, offset,
-                                         limit, uriInfo);
+                limit, uriInfo);
     }
 
     /**
@@ -788,7 +868,7 @@ public final class ModeShapeRestService {
                                             @Context UriInfo uriInfo,
                                             String requestContent ) throws RepositoryException {
         return queryHandler.executeQuery(request, rawRepositoryName, rawWorkspaceName, Query.SQL, requestContent, offset, limit,
-                                         uriInfo);
+                uriInfo);
     }
 
     /**
@@ -823,7 +903,7 @@ public final class ModeShapeRestService {
                                              @Context UriInfo uriInfo,
                                              String requestContent ) throws RepositoryException {
         return queryHandler.executeQuery(request, rawRepositoryName, rawWorkspaceName, Query.JCR_SQL2, requestContent, offset,
-                                         limit, uriInfo);
+                limit, uriInfo);
     }
 
     /**
@@ -858,8 +938,8 @@ public final class ModeShapeRestService {
                                                @Context UriInfo uriInfo,
                                                String requestContent ) throws RepositoryException {
         return queryHandler.executeQuery(request, rawRepositoryName, rawWorkspaceName,
-                                         org.modeshape.jcr.api.query.Query.FULL_TEXT_SEARCH, requestContent, offset, limit,
-                                         uriInfo);
+                org.modeshape.jcr.api.query.Query.FULL_TEXT_SEARCH, requestContent, offset, limit,
+                uriInfo);
     }
 
     /**
@@ -895,7 +975,7 @@ public final class ModeShapeRestService {
                                                    @Context UriInfo uriInfo,
                                                    String requestContent ) throws RepositoryException {
         return queryHandler.planQuery(request, rawRepositoryName, rawWorkspaceName, Query.XPATH, requestContent, offset, limit,
-                                      uriInfo);
+                uriInfo);
     }
 
     /**
@@ -931,7 +1011,7 @@ public final class ModeShapeRestService {
                                                     @Context UriInfo uriInfo,
                                                     String requestContent ) throws RepositoryException {
         return queryHandler.planQuery(request, rawRepositoryName, rawWorkspaceName, Query.SQL, requestContent, offset, limit,
-                                      uriInfo);
+                uriInfo);
     }
 
     /**
@@ -966,7 +1046,7 @@ public final class ModeShapeRestService {
                                                      @Context UriInfo uriInfo,
                                                      String requestContent ) throws RepositoryException {
         return queryHandler.planQuery(request, rawRepositoryName, rawWorkspaceName, Query.JCR_SQL2, requestContent, offset,
-                                      limit, uriInfo);
+                limit, uriInfo);
     }
 
     /**
@@ -1001,7 +1081,7 @@ public final class ModeShapeRestService {
                                                        @Context UriInfo uriInfo,
                                                        String requestContent ) throws RepositoryException {
         return queryHandler.planQuery(request, rawRepositoryName, rawWorkspaceName,
-                                      org.modeshape.jcr.api.query.Query.FULL_TEXT_SEARCH, requestContent, offset, limit, uriInfo);
+                org.modeshape.jcr.api.query.Query.FULL_TEXT_SEARCH, requestContent, offset, limit, uriInfo);
     }
 
     /**

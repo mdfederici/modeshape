@@ -16,25 +16,22 @@
 
 package org.modeshape.web.jcr.rest.handler;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import javax.jcr.Item;
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.NotFoundException;
-import javax.ws.rs.core.GenericEntity;
-import javax.ws.rs.core.Response;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.modeshape.common.util.StringUtil;
 import org.modeshape.web.jcr.rest.model.RestItem;
+
+import javax.jcr.*;
+import javax.jcr.version.Version;
+import javax.jcr.version.VersionHistory;
+import javax.jcr.version.VersionIterator;
+import javax.jcr.version.VersionManager;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.NotFoundException;
+import javax.ws.rs.core.GenericEntity;
+import javax.ws.rs.core.Response;
+import java.util.*;
 
 /**
  * An extension to the {@link ItemHandler} which is used by {@link org.modeshape.web.jcr.rest.ModeShapeRestService} to interact
@@ -102,6 +99,124 @@ public final class RestItemHandler extends ItemHandler {
         RestItem restNewNode = createRestItem(request, 0, session, newNode);
         return Response.status(Response.Status.CREATED).entity(restNewNode).build();
     }
+
+    //todo: handle if it already exists
+    public Response createWorkspace( HttpServletRequest request,
+                                     String repositoryName,
+                                     String originalWorkspaceName,
+                                     String requestBody ) throws JSONException, RepositoryException {
+        JSONObject requestBodyJSON = stringToJSONObject(requestBody);
+        String newWorkspaceName = (String)requestBodyJSON.get("newWorkspaceName");
+
+        Session session = getSession(request, repositoryName, originalWorkspaceName);
+        Workspace originalWorkspace = session.getWorkspace();
+        originalWorkspace.createWorkspace(newWorkspaceName, originalWorkspaceName);
+        session.save();
+
+        return Response.status(Response.Status.CREATED).build();
+    }
+
+    //todo: handle if it doesn't exist
+    public Response deleteWorkspace( HttpServletRequest request,
+                                     String repositoryName,
+                                     String workspaceToDelete,
+                                     String requestBody ) throws JSONException, RepositoryException {
+        Session session = getSession(request, repositoryName, workspaceToDelete);
+        session.getWorkspace().deleteWorkspace(workspaceToDelete);
+        session.save();
+
+        return Response.status(Response.Status.OK).build();
+    }
+
+    //todo: handle if either doesn't exist
+    public Response mergeWorkspace( HttpServletRequest request,
+                                    String repositoryName,
+                                    String workspaceToMergeInto,
+                                    String requestBody ) throws JSONException, RepositoryException {
+        JSONObject requestBodyJSON = stringToJSONObject(requestBody);
+        String workspaceToMerge = (String)requestBodyJSON.get("workspaceToMerge");
+
+        Session session = getSession(request, repositoryName, workspaceToMergeInto);
+        VersionManager vm = session.getWorkspace().getVersionManager();
+        vm.merge("/", workspaceToMerge, true);
+        session.save();
+
+        return Response.status(Response.Status.OK).build();
+    }
+
+    //todo: handle if either doesn't exist
+    public Response getRevisions( HttpServletRequest request,
+                                  String repositoryName,
+                                  String workspaceName,
+                                  String path,
+                                  String requestBody ) throws JSONException, RepositoryException {
+        Session session = getSession(request, repositoryName, workspaceName);
+        VersionManager versionManager = session.getWorkspace().getVersionManager();
+        VersionHistory history = versionManager.getVersionHistory(path);
+
+        VersionIterator iterator = history.getAllVersions();
+
+        List<String> versionList = new ArrayList<String>();
+
+        logger.info("Found {0} revisions of {1}.", iterator.getSize(), path);
+        while (iterator.hasNext()) {
+            Version revision = iterator.nextVersion();
+
+            String revisionName = revision.getName();
+            if(!revisionName.equals("jcr:rootVersion"))
+                versionList.add(revisionName);
+        }
+
+        return Response.status(Response.Status.OK).entity(versionList).build();
+    }
+
+    //todo: handle if doesn't exist
+    public Response getItemRevision( HttpServletRequest request,
+                                     String repositoryName,
+                                     String workspaceName,
+                                     String path,
+                                     String versionName ) throws JSONException, RepositoryException {
+        Session session = getSession(request, repositoryName, workspaceName);
+        VersionManager versionManager = session.getWorkspace().getVersionManager();
+        VersionHistory history = versionManager.getVersionHistory(path);
+        Version revision = history.getVersion(versionName);
+        Node frozenNode = revision.getFrozenNode();
+
+        RestItem frozenRestItem = createRestItem(request, 0, session, frozenNode);
+
+        return Response.status(Response.Status.OK).entity(frozenRestItem).build();
+    }
+
+    //todo: handle if doesn't exist
+    public Response revertItem( HttpServletRequest request,
+                                String repositoryName,
+                                String workspaceName,
+                                String path,
+                                String versionToRevertTo ) throws JSONException, RepositoryException {
+        Session session = getSession(request, repositoryName, workspaceName);
+        VersionManager versionManager = session.getWorkspace().getVersionManager();
+
+        versionManager.restore(path, versionToRevertTo, true);
+        versionManager.checkin(path); //note: puts node in readonly state
+        versionManager.checkout(path); //note: puts node in readwrite state
+
+        Node revertedNode = session.getNode(path);
+        RestItem revertedRestItem = createRestItem(request, 0, session, revertedNode);
+
+        return Response.status(Response.Status.OK).entity(revertedRestItem).build();
+    }
+
+    //todo: handle if doesn't exist
+    public Response checkoutItem( HttpServletRequest request,
+                                  String repositoryName,
+                                  String workspaceName,
+                                  String path ) throws JSONException, RepositoryException {
+        Session session = getSession(request, repositoryName, workspaceName);
+        VersionManager versionManager = session.getWorkspace().getVersionManager();
+        versionManager.checkout(path); //note: puts node in readwrite state
+        return Response.status(Response.Status.OK).build();
+    }
+
 
     @Override
     protected JSONObject getProperties( JSONObject jsonNode ) throws JSONException {
@@ -259,7 +374,7 @@ public final class RestItemHandler extends ItemHandler {
     private List<RestItem> updateMultipleNodes( HttpServletRequest request,
                                                 Session session,
                                                 TreeMap<String, JSONObject> nodesByPath )
-        throws RepositoryException, JSONException {
+            throws RepositoryException, JSONException {
         List<RestItem> result = new ArrayList<RestItem>();
         for (String nodePath : nodesByPath.keySet()) {
             Item item = session.getItem(nodePath);
