@@ -214,7 +214,7 @@ public final class RestItemHandler extends ItemHandler {
         Session session = getSession(request, repositoryName, workspaceName);
         VersionManager versionManager = session.getWorkspace().getVersionManager();
         versionManager.checkout(path); //note: puts node in readwrite state
-        return Response.status(Response.Status.OK).build();
+        return Response.status(Response.Status.NO_CONTENT).build();
     }
 
 
