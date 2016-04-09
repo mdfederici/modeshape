@@ -31,6 +31,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.Response;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -144,6 +145,15 @@ public final class RestItemHandler extends ItemHandler {
         return Response.status(Response.Status.OK).build();
     }
 
+    public class RevisionInfo {
+        public final String revisionName;
+        public final String formattedRevisionDate;
+        public RevisionInfo(String revisionName, String formattedRevisionDate) {
+            this.revisionName = revisionName;
+            this.formattedRevisionDate = formattedRevisionDate;
+        }
+    }
+
     //todo: handle if either doesn't exist
     public Response getRevisions( HttpServletRequest request,
                                   String repositoryName,
@@ -156,15 +166,17 @@ public final class RestItemHandler extends ItemHandler {
 
         VersionIterator iterator = history.getAllVersions();
 
-        List<String> versionList = new ArrayList<String>();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss a");
+        List<RevisionInfo> versionList = new ArrayList<RevisionInfo>();
 
         logger.info("Found {0} revisions of {1}.", iterator.getSize(), path);
         while (iterator.hasNext()) {
             Version revision = iterator.nextVersion();
 
             String revisionName = revision.getName();
-            if(!revisionName.equals("jcr:rootVersion"))
-                versionList.add(revisionName);
+            if(!revisionName.equals("jcr:rootVersion")){
+                versionList.add(new RevisionInfo(revisionName, dateFormat.format(revision.getCreated().getTime())));
+            }
         }
 
         return Response.status(Response.Status.OK).entity(versionList).build();
