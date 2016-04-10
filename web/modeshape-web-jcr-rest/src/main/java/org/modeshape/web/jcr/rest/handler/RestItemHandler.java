@@ -169,7 +169,6 @@ public final class RestItemHandler extends ItemHandler {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss a");
         List<RevisionInfo> versionList = new ArrayList<RevisionInfo>();
 
-        logger.info("Found {0} revisions of {1}.", iterator.getSize(), path);
         while (iterator.hasNext()) {
             Version revision = iterator.nextVersion();
 
@@ -209,12 +208,17 @@ public final class RestItemHandler extends ItemHandler {
         VersionManager versionManager = session.getWorkspace().getVersionManager();
 
         versionManager.restore(path, versionToRevertTo, true);
-        versionManager.checkin(path); //note: puts node in readonly state
+
+        //do checkin to force a new version in the version history
+        //to represent this revert. For the checkin call to work, the
+        //node must first be in a checked out state so do that first.
+        versionManager.checkout(path); //note: puts node in readwrite state
+        Version newVersion = versionManager.checkin(path); //note: puts node in readonly state
         versionManager.checkout(path); //note: puts node in readwrite state
 
         Node revertedNode = session.getNode(path);
         RestItem revertedRestItem = createRestItem(request, 0, session, revertedNode);
-
+        session.save();
         return Response.status(Response.Status.OK).entity(revertedRestItem).build();
     }
 
