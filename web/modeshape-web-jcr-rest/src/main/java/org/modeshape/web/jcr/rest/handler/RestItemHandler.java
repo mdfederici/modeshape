@@ -114,7 +114,7 @@ public final class RestItemHandler extends ItemHandler {
         originalWorkspace.createWorkspace(newWorkspaceName, originalWorkspaceName);
         session.save();
 
-        return Response.status(Response.Status.CREATED).build();
+        return Response.status(Response.Status.NO_CONTENT).build();
     }
 
     //todo: handle if it doesn't exist
@@ -126,7 +126,7 @@ public final class RestItemHandler extends ItemHandler {
         session.getWorkspace().deleteWorkspace(workspaceToDelete);
         session.save();
 
-        return Response.status(Response.Status.OK).build();
+        return Response.status(Response.Status.NO_CONTENT).build();
     }
 
     //todo: handle if either doesn't exist
@@ -142,7 +142,7 @@ public final class RestItemHandler extends ItemHandler {
         vm.merge("/", workspaceToMerge, true);
         session.save();
 
-        return Response.status(Response.Status.OK).build();
+        return Response.status(Response.Status.NO_CONTENT).build();
     }
 
     public class RevisionInfo {
