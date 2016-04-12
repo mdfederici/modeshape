@@ -122,6 +122,9 @@ public final class RestItemHandler extends ItemHandler {
                                      String repositoryName,
                                      String workspaceToDelete,
                                      String requestBody ) throws JSONException, RepositoryException {
+        if(workspaceToDelete == "master")
+            return Response.status(Response.Status.BAD_REQUEST).build();
+
         Session session = getSession(request, repositoryName, workspaceToDelete);
         session.getWorkspace().deleteWorkspace(workspaceToDelete);
         session.save();
