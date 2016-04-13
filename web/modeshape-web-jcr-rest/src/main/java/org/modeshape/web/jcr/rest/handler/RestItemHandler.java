@@ -95,8 +95,11 @@ public final class RestItemHandler extends ItemHandler {
         Session session = getSession(request, repositoryName, workspaceName);
         Node parentNode = (Node)session.getItem(parentAbsPath);
         Node newNode = addNode(parentNode, newNodeName, requestBodyJSON);
-
         session.save();
+
+        VersionManager versionManager = session.getWorkspace().getVersionManager();
+        setCurrentVersionToHead(versionManager, path);
+
         RestItem restNewNode = createRestItem(request, 0, session, newNode);
         return Response.status(Response.Status.CREATED).entity(restNewNode).build();
     }
@@ -122,7 +125,7 @@ public final class RestItemHandler extends ItemHandler {
                                      String repositoryName,
                                      String workspaceToDelete,
                                      String requestBody ) throws JSONException, RepositoryException {
-        if(workspaceToDelete == "master")
+        if("master".equals(workspaceToDelete))
             return Response.status(Response.Status.BAD_REQUEST).build();
 
         Session session = getSession(request, repositoryName, workspaceToDelete);
@@ -139,10 +142,25 @@ public final class RestItemHandler extends ItemHandler {
                                     String requestBody ) throws JSONException, RepositoryException {
         JSONObject requestBodyJSON = stringToJSONObject(requestBody);
         String workspaceToMerge = (String)requestBodyJSON.get("workspaceToMerge");
+        JSONArray nodePathsToSetToHead = requestBodyJSON.getJSONArray("nodePathsToSetToHead");
 
         Session session = getSession(request, repositoryName, workspaceToMergeInto);
-        VersionManager vm = session.getWorkspace().getVersionManager();
-        vm.merge("/", workspaceToMerge, true);
+        VersionManager versionManager = session.getWorkspace().getVersionManager();
+
+        versionManager.merge("/", workspaceToMerge, true);
+
+        for (int i = 0; i < nodePathsToSetToHead.length(); i++) {
+            String nodePath = nodePathsToSetToHead.getString(i);
+
+            //if not, node was likely removed as
+            //a part of the merge
+            if(session.nodeExists(nodePath)) {
+                Node mergedNode = session.getNode(nodePath);
+                mergedNode.update(workspaceToMerge);
+                versionManager.checkout(nodePath); //note: puts node in readwrite state
+            }
+        }
+
         session.save();
 
         return Response.status(Response.Status.NO_CONTENT).build();
@@ -212,12 +230,7 @@ public final class RestItemHandler extends ItemHandler {
 
         versionManager.restore(path, versionToRevertTo, true);
 
-        //do checkin to force a new version in the version history
-        //to represent this revert. For the checkin call to work, the
-        //node must first be in a checked out state so do that first.
-        versionManager.checkout(path); //note: puts node in readwrite state
-        Version newVersion = versionManager.checkin(path); //note: puts node in readonly state
-        versionManager.checkout(path); //note: puts node in readwrite state
+        setCurrentVersionToHead(versionManager, path);
 
         Node revertedNode = session.getNode(path);
         RestItem revertedRestItem = createRestItem(request, 0, session, revertedNode);
@@ -236,6 +249,14 @@ public final class RestItemHandler extends ItemHandler {
         return Response.status(Response.Status.NO_CONTENT).build();
     }
 
+    private void setCurrentVersionToHead(VersionManager versionManager, String pathToNode) throws RepositoryException {
+        //do checkin to force a new version in the version history
+        //to represent this revert. For the checkin call to work, the
+        //node must first be in a checked out state so do that first.
+        versionManager.checkout(pathToNode); //note: puts node in readwrite state
+        Version newVersion = versionManager.checkin(pathToNode); //note: puts node in readonly state
+        versionManager.checkout(pathToNode); //note: puts node in readwrite state
+    }
 
     @Override
     protected JSONObject getProperties( JSONObject jsonNode ) throws JSONException {
