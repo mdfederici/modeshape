@@ -408,7 +408,7 @@ public final class RestItemHandler extends ItemHandler {
             }
         }
         session.save();
-        return Response.ok().build();
+        return Response.status(Response.Status.NO_CONTENT).build();
     }
 
     private List<RestItem> updateMultipleNodes( HttpServletRequest request,
